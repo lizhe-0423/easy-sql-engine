@@ -1,0 +1,49 @@
+{
+  "id": "user_query",
+  "datasource": "test_db",
+  "dialect": "mysql",
+  "select": [
+    {"expr": "u.id", "alias": "user_id"},
+    {"expr": "u.name", "alias": "user_name"},
+    {"expr": "u.email"},
+    {"expr": "p.name", "alias": "profile_name"}
+  ],
+  "from": {
+    "schema": "test",
+    "table": "user",
+    "alias": "u"
+  },
+  "joins": [
+    {
+      "type": "left",
+      "table": {"schema": "test", "table": "profile", "alias": "p"},
+      "on": [
+        {"left": "u.id", "operator": "=", "right": {"value": "p.user_id"}}
+      ]
+    }
+  ],
+  "where": {
+    "op": "AND",
+    "conditions": [
+      {
+        "leaf": {"left": "u.status", "operator": "=", "right": {"value": "active"}}
+      },
+      {
+        "leaf": {"left": "u.created_at", "operator": ">=", "right": {"param": "start_date"}}
+      }
+    ]
+  },
+  "orderBy": [
+    {"expr": "u.created_at", "direction": "DESC"},
+    {"expr": "u.id", "direction": "ASC"}
+  ],
+  "limit": 100,
+  "params": [
+    {"name": "start_date", "type": "DATE", "required": true}
+  ],
+  "options": {
+    "timeoutMs": 30000,
+    "maxRows": 1000,
+    "readOnly": true
+  }
+}
