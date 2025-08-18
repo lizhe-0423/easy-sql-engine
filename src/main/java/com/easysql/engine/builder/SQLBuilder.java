@@ -19,6 +19,10 @@ public class SQLBuilder {
         StringBuilder sql = new StringBuilder();
         // SELECT
         sql.append("SELECT ");
+        // 注入方言hint（如有），采用通用注释/*+ ... */形式
+        if (t.options != null && t.options.hints != null && !t.options.hints.isEmpty()) {
+            sql.append("/*+ ").append(String.join(" ", t.options.hints)).append(" */ ");
+        }
         String selectPart = t.select.stream()
                 .map(it -> it.alias != null && !it.alias.isEmpty()
                         ? it.expr + " AS " + dialect.escapeIdentifier(it.alias)
