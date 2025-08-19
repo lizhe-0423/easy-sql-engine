@@ -413,3 +413,46 @@ try (Connection conn = DriverManager.getConnection("jdbc:h2:mem:demodb;MODE=MySQ
 ```
 
 生产项目中建议将模板放置在 `src/main/resources/`，并通过 `TemplateMapper.fromResource("your-template.json")` 加载；本仓库的演示模板位于 `src/test/resources/`，便于随演示测试一并运行。
+
+## 基准测试（JMH）
+
+本项目内置了 JMH 基准测试，用于评估 SQL 构建与执行性能：
+
+- 基类：`src/test/java/com/easysql/engine/benchmark/SQLBuildAndExecuteBenchmark.java`
+- DSL 构建基准：`src/test/java/com/easysql/engine/benchmark/DSLBenchmark.java`
+
+运行方式（需 JDK8+ 与 Maven）：
+
+```bash
+# 运行全部基准（使用pom中exec-maven-plugin调用 org.openjdk.jmh.Main）
+mvn -q -DskipTests exec:exec -Prun-benchmarks
+
+# 或直接运行测试classpath下的JMH主类（更通用）
+mvn -q -DskipTests test-compile
+java -classpath target/test-classes;target/classes;$(mvn -q -Dexec.classpathScope=test -DincludeScope=test -Dexec.executable=echo --non-recursive exec:classpath) org.openjdk.jmh.Main .*
+```
+
+基准说明：
+- `SQLBuildAndExecuteBenchmark#benchmarkBuildSQL`：仅构建 SQL；
+- `SQLBuildAndExecuteBenchmark#benchmarkExecuteQuery`：构建 + H2 内存库执行；
+- `DSLBenchmark`：覆盖简单 / 中等 / 复杂 / 超复杂 的 DSL 构建路径，以及“仅DSL构建（不经引擎）”。
+
+提示：若输出包含 JIT 预热与采样阶段信息属正常。首次运行会初始化内存库与示例数据，建议忽略冷启动结果，关注稳定阶段吞吐量（ops/s）与延迟分布（p50/p95）。
+
+---
+
+## 压测（JMeter 模版）
+
+本仓库提供 JMeter 脚本模板，用于 HTTP API 与数据库连接池压测（规划中）：
+
+- 目录建议：`/jmeter/` 下分别维护 `http/` 与 `jdbc/` 两套脚本与 README。
+- 示例脚本（占位）：
+  - `jmeter/http/easysql-http-demo.jmx`：模拟服务端暴露的构建与执行接口压测；
+  - `jmeter/jdbc/easysql-jdbc-demo.jmx`：直连数据库（演示用），对执行器进行并发压测。
+
+使用方式：
+1) 安装 Apache JMeter（3.2+ 建议 5.x）。
+2) 打开对应 `.jmx` 脚本，根据你的环境修改线程组并发数、RPS、参数化数据文件与 JDBC 连接配置。
+3) 运行并查看 Summary/HTML 报告，关注吞吐、错误率、P95/P99 延迟。
+
+注意：若你计划通过 HTTP 压测，需要先实现或启用服务端接口（例如新增一个 Spring Boot 或 Undertow 的 Demo Server），将 EasySQLEngine 与 JDBCSQLExecutor 暴露为 REST API；数据库压测请使用专用的预备库，避免影响生产环境。
