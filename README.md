@@ -456,3 +456,154 @@ java -classpath target/test-classes;target/classes;$(mvn -q -Dexec.classpathScop
 3) 运行并查看 Summary/HTML 报告，关注吞吐、错误率、P95/P99 延迟。
 
 注意：若你计划通过 HTTP 压测，需要先实现或启用服务端接口（例如新增一个 Spring Boot 或 Undertow 的 Demo Server），将 EasySQLEngine 与 JDBCSQLExecutor 暴露为 REST API；数据库压测请使用专用的预备库，避免影响生产环境。
+
+
+## Server 模式（HTTP API）
+
+M3 里程碑新增了基于 Spring Boot 的服务端模式，提供模板版本管理与 SQL 构建/执行的 HTTP 接口，便于以服务形态集成到你的系统中。
+
+### 运行服务
+
+1) 构建打包（需 JDK8+ 与 Maven）
+
+```bash
+mvn -q -DskipTests=true package
+```
+
+2) 启动服务（默认端口 8080）
+
+```bash
+java -jar target/easy-sql-engine-1.0.0-SNAPSHOT.jar
+```
+
+3) 自定义端口（示例 8081）
+
+```bash
+java -jar target/easy-sql-engine-1.0.0-SNAPSHOT.jar --server.port=8081
+```
+
+4) 停止服务
+- 前台运行：在运行该命令的终端按 Ctrl + C
+- 后台/异步方式：结束对应的 Java 进程
+
+### API 总览
+
+统一前缀：`/api`
+
+- 模板版本管理
+  - POST `/templates/version`（Body: Template，Query: comment?）保存新版本并设为活跃版本，返回 TemplateVersion
+  - GET `/templates/{templateId}/versions` 列出版本历史
+  - GET `/templates/{templateId}/versions/{version}` 获取指定版本模板
+  - GET `/templates` 获取全部模板ID集合
+  - GET `/templates/{templateId}/active` 获取活跃版本的模板
+  - GET `/templates/{templateId}/active/version` 获取活跃版本号
+  - POST `/templates/{templateId}/rollback/{version}` 回滚活跃版本到指定版本
+  - GET `/templates/{templateId}/compare?v1=...&v2=...` 比较两版本（返回包含两个模板实体）
+  - DELETE `/templates/{templateId}` 删除该模板的全部版本与活跃指针
+
+- SQL 构建与执行
+  - POST `/build`（Body: Template）基于模板对象生成 SQL
+  - POST `/build-json`（Content-Type: text/plain，Body: 模板JSON字符串）生成 SQL
+  - POST `/execute`（Body: ExecuteRequest）构建后通过 JDBC 直连执行查询（演示用途）
+
+> ExecuteRequest 结构：
+>
+> ```json
+> {
+>   "template": { /* Template 对象 */ },
+>   "url": "jdbc:mysql://host:3306/db",
+>   "user": "root",
+>   "password": "mypwd",
+>   "params": { "paramName": "paramValue" }
+> }
+> ```
+
+### cURL 快速体验
+
+- 保存新版本（自动生成版本号并设为活跃）
+
+```bash
+curl -X POST "http://localhost:8080/api/templates/version?comment=init" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "id":"order_list",
+        "dialect":"mysql",
+        "select":[{"expr":"id"},{"expr":"user_id"}],
+        "from":{"table":"orders"},
+        "limit":10
+      }'
+```
+
+- 查看版本历史
+
+```bash
+curl "http://localhost:8080/api/templates/order_list/versions"
+```
+
+- 获取活跃版本模板与版本号
+
+```bash
+curl "http://localhost:8080/api/templates/order_list/active"
+curl "http://localhost:8080/api/templates/order_list/active/version"
+```
+
+- 获取指定版本模板
+
+```bash
+curl "http://localhost:8080/api/templates/order_list/versions/1.0.0"
+```
+
+- 回滚活跃版本
+
+```bash
+curl -X POST "http://localhost:8080/api/templates/order_list/rollback/1.0.0"
+```
+
+- 比较两个版本
+
+```bash
+curl "http://localhost:8080/api/templates/order_list/compare?v1=1.0.0&v2=1.0.1"
+```
+
+- 构建 SQL（对象/JSON）
+
+```bash
+curl -X POST "http://localhost:8080/api/build" -H "Content-Type: application/json" -d '{
+  "id":"order_list","dialect":"mysql",
+  "select":[{"expr":"id"},{"expr":"user_id"}],
+  "from":{"table":"orders"},
+  "limit":10
+}'
+
+curl -X POST "http://localhost:8080/api/build-json" -H "Content-Type: text/plain" -d '{
+  "id": "order_list",
+  "dialect": "mysql",
+  "select": [{"expr": "id"}, {"expr": "user_id"}],
+  "from": {"table": "orders"},
+  "limit": 10
+}'
+```
+
+- 执行 SQL（演示）
+
+```bash
+curl -X POST "http://localhost:8080/api/execute" -H "Content-Type: application/json" -d '{
+  "template": {
+    "id":"order_list","dialect":"mysql",
+    "select":[{"expr":"id"},{"expr":"user_id"}],
+    "from":{"table":"orders"},
+    "limit":10
+  },
+  "url": "jdbc:mysql://localhost:3306/yourdb",
+  "user": "root",
+  "password": "yourpwd",
+  "params": {}
+}'
+```
+
+### 注意事项
+
+- 模板版本管理使用进程内存存储，适合演示与单实例；生产建议持久化（如 RDBMS/Redis），并考虑并发控制与多实例一致性。
+- `/api/execute` 为演示用途：需要在请求中传入数据库连接信息，生产建议改为服务端统一管理数据源连接池，并基于 `template.datasource` 做路由。
+- 默认未启用鉴权/限流/审计，可按需接入（如 API Key、Spring Security、网关限流、操作日志等）。
+- 若需自定义端口与日志级别，可添加 `application.properties` 或使用启动参数（例如 `--server.port=8081`）。
