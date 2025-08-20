@@ -2,6 +2,8 @@
 
 轻量、通用、高性能的动态SQL生成与执行引擎。基于JSON模板描述复杂查询，支持参数化和多种数据库方言。
 
+**新增特性：SQL优化建议平台** - 集成轻量级规则引擎，提供证据化的SQL性能优化建议，帮助提升查询效率。
+
 ## 文档概览
 
 - [PRD（产品需求文档）](./PRD.md)
@@ -607,3 +609,58 @@ curl -X POST "http://localhost:8080/api/execute" -H "Content-Type: application/j
 - `/api/execute` 为演示用途：需要在请求中传入数据库连接信息，生产建议改为服务端统一管理数据源连接池，并基于 `template.datasource` 做路由。
 - 默认未启用鉴权/限流/审计，可按需接入（如 API Key、Spring Security、网关限流、操作日志等）。
 - 若需自定义端口与日志级别，可添加 `application.properties` 或使用启动参数（例如 `--server.port=8081`）。
+
+## SQL 优化建议平台（实验性）
+
+为引擎补充了一个轻量的“SQL 优化建议”能力，基于规则库对输入 SQL 给出建议、依据与（可选）示例改写，并提供一个简单 UI 页面与 HTTP 接口。
+
+- 页面体验：GET /optimizer
+- JSON 接口：POST /api/optimizer/analyze（Body: {"sql": "..."}）
+- 返回结构：
+  - originalSQL: 原始 SQL
+  - optimizedSQL: 优化后的 SQL（若可提供通用改写）
+  - advice: 综合建议（可读结论，分号分隔）
+  - reason: 依据说明（证据/原理，分号分隔）
+
+示例（cURL）：
+
+```bash
+curl -s -X POST "http://localhost:8080/api/optimizer/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT * FROM orders ORDER BY created_at"}' | jq
+```
+
+示例响应（节选）：
+
+```json
+{
+  "originalSQL": "SELECT * FROM orders ORDER BY created_at",
+  "optimizedSQL": "select column1, column2, ... LIMIT 100",
+  "advice": "避免使用 SELECT *，明确指定需要的列; ORDER BY 后建议添加 LIMIT，避免对大结果集排序",
+  "reason": "SELECT * 会增加网络传输、降低缓存与索引覆盖; 无限制排序会消耗 CPU/内存并拉长时延"
+}
+```
+
+当前内置规则（节选）：
+- SELECT * → 指定列
+- 无 WHERE 的全表扫描 → 建议加 WHERE 或 LIMIT
+- ORDER BY 无 LIMIT → 建议加 LIMIT
+- WHERE/JOIN 中使用函数 → 可能使索引失效
+- NOT IN → 建议 NOT EXISTS 或 LEFT JOIN IS NULL
+- LIKE '%xxx' 前置通配/LIKE '%...%' 两端通配 → 建议前缀/全文索引
+- UNION → 若允许重复，优先 UNION ALL
+- 大偏移量分页（OFFSET）→ 建议 Keyset Pagination
+- WHERE 中包含 OR → 可考虑拆为 UNION ALL 或改写为 IN
+- 非聚合条件写在 HAVING → 下推到 WHERE
+- SELECT 列表含标量子查询 → 改为 JOIN 获取
+- ORDER BY RAND() 反模式
+
+源码位置：
+- 规则与分析引擎：<mcfile name="SQLOptimizer.java" path="src/main/java/com/easysql/engine/optimizer/SQLOptimizer.java"></mcfile>
+- HTTP 与页面：<mcfile name="OptimizerController.java" path="src/main/java/com/easysql/engine/server/OptimizerController.java"></mcfile>
+
+演进路线（规划）：
+- Phase 1（已交付原型）：基于规则的静态诊断（UI + API）
+- Phase 2：对接 EXPLAIN，解析执行计划与关键算子（证据化输出）
+- Phase 3：AST 解析与复合规则（JOIN 顺序/下推等）
+- Phase 4：AI 诊断补充层（生成建议草案，需经 AST/PLAN 校验）

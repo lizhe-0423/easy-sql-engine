@@ -14,7 +14,7 @@
 - 双向映射：JDBC/DB类型 <-> 中间类型 <-> Java类型。
 - 时间与时区：内部统一UTC存储与转换策略（可配置），模板可声明期望时区/格式化。
 
-## 4. JSON模板数据结构定义（概要）
+## 4. JSON 模板数据结构定义（概要）
 - 顶层字段
   - version: 模板版本
   - id: 模板唯一标识（用于审计/缓存）
@@ -114,3 +114,34 @@
   - JUnit用例、JMH基准样例、JMeter压测脚本样例
 - 后续演进
   - 增强DSL与优化器、覆盖更多方言、Server化治理与配额、模板版本与灰度
+
+## 12.1 SQL 优化建议数据模型（新增）
+
+- OptimizationResult（返回给前端/调用方）
+  - originalSQL: string
+  - optimizedSQL: string
+  - advice: string（建议结论，分号分隔）
+  - reason: string（依据说明，分号分隔）
+
+- OptimizationSuggestion（内部规则产物，规则引擎聚合）
+  - advice: string
+  - reason: string
+  - optimizedSQL: string|null（示例改写，可空）
+
+- 规则库（Rule）
+  - pattern: 正则/DSL 模式
+  - generator: (sql) -> OptimizationSuggestion
+
+## 12.2 EXPLAIN/AST 结构（规划占位）
+
+- ExecutionPlan（规划）：
+  - dialect: mysql|clickhouse|postgres
+  - raw: 原始 EXPLAIN 文本/JSON
+  - nodes: [ { id, type, estRows, actRows?, key?, keyLen?, filtered?, extra? } ]
+
+- SQL AST（规划）：
+  - 统一节点：Select, From, Join, Where, GroupBy, Having, OrderBy, Limit, Subquery
+  - 属性：列/表/别名/函数/谓词/连接条件/子查询分类
+
+- Evidence（规划）：
+  - items: [ { ruleId, snippet, location(from/where/join/having), impact(low/medium/high) } ]
