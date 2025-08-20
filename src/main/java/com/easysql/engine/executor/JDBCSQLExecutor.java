@@ -59,13 +59,13 @@ public class JDBCSQLExecutor implements SQLExecutor {
                 }
                 long end = System.currentTimeMillis();
                 long execTime = end - start;
-                metrics().record(QueryMetrics.success(template.id, template.datasource, 0, execTime, rows.size()));
+                metrics().record(QueryMetrics.success(template.id, template.version, template.datasource, 0, execTime, rows.size()));
                 return new QueryResult(rows, cols, execTime);
             }
         } catch (SQLException e) {
             long end = System.currentTimeMillis();
             long execTime = end - start;
-            metrics().record(QueryMetrics.failure(template.id, template.datasource, 0, "JDBC_ERROR", e.getMessage()));
+            metrics().record(QueryMetrics.failure(template.id, template.version, template.datasource, 0, "JDBC_ERROR", e.getMessage()));
             throw new RuntimeException("SQL query failed: " + e.getMessage(), e);
         }
     }
@@ -84,12 +84,12 @@ public class JDBCSQLExecutor implements SQLExecutor {
             int updated = nps.getStatement().executeUpdate();
             long end = System.currentTimeMillis();
             long execTime = end - start;
-            metrics().record(QueryMetrics.success(template.id, template.datasource, 0, execTime, updated));
+            metrics().record(QueryMetrics.success(template.id, template.version, template.datasource, 0, execTime, updated));
             return updated;
         } catch (SQLException e) {
             long end = System.currentTimeMillis();
             long execTime = end - start;
-            metrics().record(QueryMetrics.failure(template.id, template.datasource, 0, "JDBC_ERROR", e.getMessage()));
+            metrics().record(QueryMetrics.failure(template.id, template.version, template.datasource, 0, "JDBC_ERROR", e.getMessage()));
             throw new RuntimeException("SQL update failed: " + e.getMessage(), e);
         }
     }

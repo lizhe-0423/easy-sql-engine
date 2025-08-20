@@ -2,6 +2,8 @@ package com.easysql.engine;
 
 import com.easysql.engine.builder.SQLBuilder;
 import com.easysql.engine.dialect.MySQLDialect;
+import com.easysql.engine.dialect.PostgreSQLDialect;
+import com.easysql.engine.dialect.ClickHouseDialect;
 import com.easysql.engine.dialect.SQLDialect;
 import com.easysql.engine.model.Template;
 import com.easysql.engine.monitor.MetricsCollector;
@@ -10,6 +12,7 @@ import com.easysql.engine.optimizer.BasicOptimizer;
 import com.easysql.engine.dsl.Query;
 import com.easysql.engine.metadata.MetadataCache;
 import com.easysql.engine.executor.JDBCSQLExecutor;
+import com.easysql.engine.version.TemplateVersionManager;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -20,10 +23,12 @@ public class EasySQLEngine {
     private final Map<String, SQLDialect> dialects = new HashMap<>();
     private final MetricsCollector metrics = new MetricsCollector();
     private final MetadataCache metadataCache = new MetadataCache(1000, 300000); // 1000条，5分钟TTL
+    private final TemplateVersionManager versionManager = new TemplateVersionManager();
 
     public EasySQLEngine() {
         dialects.put("mysql", new MySQLDialect());
-        // 其他方言可在M2添加
+        dialects.put("postgresql", new PostgreSQLDialect());
+        dialects.put("clickhouse", new ClickHouseDialect());
     }
 
     /**
@@ -93,11 +98,11 @@ public class EasySQLEngine {
             String sql = builder.buildSelect(t);
             long end = System.currentTimeMillis();
             long buildTime = end - start;
-            metrics.record(QueryMetrics.success(t.id, t.datasource, buildTime, 0, 0));
+            metrics.record(QueryMetrics.success(t.id, t.version, t.datasource, buildTime, 0, 0));
             return new QueryResult(sql, t, buildTime);
         } catch (RuntimeException e) {
             long end = System.currentTimeMillis();
-            metrics.record(QueryMetrics.failure("unknown", "unknown", end - start, "BUILD_ERROR", e.getMessage()));
+            metrics.record(QueryMetrics.failure("unknown", null, "unknown", end - start, "BUILD_ERROR", e.getMessage()));
             throw e;
         }
     }
@@ -121,11 +126,11 @@ public class EasySQLEngine {
             String sql = builder.buildSelect(t);
             long end = System.currentTimeMillis();
             long buildTime = end - start;
-            metrics.record(QueryMetrics.success(t.id, t.datasource, buildTime, 0, 0));
+            metrics.record(QueryMetrics.success(t.id, t.version, t.datasource, buildTime, 0, 0));
             return new QueryResult(sql, t, buildTime);
         } catch (RuntimeException e) {
             long end = System.currentTimeMillis();
-            metrics.record(QueryMetrics.failure(t != null ? t.id : "unknown", t != null ? t.datasource : "unknown", end - start, "BUILD_ERROR", e.getMessage()));
+            metrics.record(QueryMetrics.failure(t != null ? t.id : "unknown", t != null ? t.version : null, t != null ? t.datasource : "unknown", end - start, "BUILD_ERROR", e.getMessage()));
             throw e;
         }
     }
@@ -149,6 +154,13 @@ public class EasySQLEngine {
      */
     public MetadataCache getMetadataCache() {
         return metadataCache;
+    }
+
+    /**
+     * 获取模板版本管理器
+     */
+    public TemplateVersionManager getVersionManager() {
+        return versionManager;
     }
 
     /**

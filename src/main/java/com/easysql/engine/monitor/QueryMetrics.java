@@ -5,6 +5,7 @@ package com.easysql.engine.monitor;
  */
 public class QueryMetrics {
     public String templateId;
+    public String templateVersion; // 模板版本，用于审计追踪
     public String datasource;
     public long buildTimeMs;
     public long executeTimeMs;
@@ -13,9 +14,10 @@ public class QueryMetrics {
     public String errorCode;
     public String errorMessage;
 
-    public static QueryMetrics success(String templateId, String datasource, long buildTimeMs, long executeTimeMs, int rowCount) {
+    public static QueryMetrics success(String templateId, String templateVersion, String datasource, long buildTimeMs, long executeTimeMs, int rowCount) {
         QueryMetrics m = new QueryMetrics();
         m.templateId = templateId;
+        m.templateVersion = templateVersion;
         m.datasource = datasource;
         m.buildTimeMs = buildTimeMs;
         m.executeTimeMs = executeTimeMs;
@@ -24,9 +26,10 @@ public class QueryMetrics {
         return m;
     }
 
-    public static QueryMetrics failure(String templateId, String datasource, long buildTimeMs, String errorCode, String errorMessage) {
+    public static QueryMetrics failure(String templateId, String templateVersion, String datasource, long buildTimeMs, String errorCode, String errorMessage) {
         QueryMetrics m = new QueryMetrics();
         m.templateId = templateId;
+        m.templateVersion = templateVersion;
         m.datasource = datasource;
         m.buildTimeMs = buildTimeMs;
         m.executeTimeMs = 0;
@@ -35,5 +38,16 @@ public class QueryMetrics {
         m.errorCode = errorCode;
         m.errorMessage = errorMessage;
         return m;
+    }
+
+    // 向后兼容方法（废弃但保留）
+    @Deprecated
+    public static QueryMetrics success(String templateId, String datasource, long buildTimeMs, long executeTimeMs, int rowCount) {
+        return success(templateId, null, datasource, buildTimeMs, executeTimeMs, rowCount);
+    }
+
+    @Deprecated
+    public static QueryMetrics failure(String templateId, String datasource, long buildTimeMs, String errorCode, String errorMessage) {
+        return failure(templateId, null, datasource, buildTimeMs, errorCode, errorMessage);
     }
 }

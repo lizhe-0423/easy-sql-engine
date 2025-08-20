@@ -5,6 +5,7 @@ import java.util.Map;
 
 public class Template {
     public String id;
+    public String version; // 模板版本号，用于版本控制和审计追踪
     public String datasource;
     public String dialect; // 可选，优先采用数据源配置
 

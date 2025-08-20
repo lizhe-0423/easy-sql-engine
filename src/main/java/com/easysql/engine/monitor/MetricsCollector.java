@@ -20,11 +20,11 @@ public class MetricsCollector {
         if (m.success) successQueries.incrementAndGet(); else failedQueries.incrementAndGet();
         // 简单日志输出，避免泄漏SQL，仅输出模板ID与耗时
         if (m.success) {
-            log.info("[metrics] template={} datasource={} buildTimeMs={} executeTimeMs={} rows={} success=true",
-                    m.templateId, m.datasource, m.buildTimeMs, m.executeTimeMs, m.rowCount);
+            log.info("[metrics] template={} version={} datasource={} buildTimeMs={} executeTimeMs={} rows={} success=true",
+                    m.templateId, m.templateVersion, m.datasource, m.buildTimeMs, m.executeTimeMs, m.rowCount);
         } else {
-            log.warn("[metrics] template={} datasource={} buildTimeMs={} success=false errorCode={} errorMsg={}",
-                    m.templateId, m.datasource, m.buildTimeMs, m.errorCode, m.errorMessage);
+            log.warn("[metrics] template={} version={} datasource={} buildTimeMs={} success=false errorCode={} errorMsg={}",
+                    m.templateId, m.templateVersion, m.datasource, m.buildTimeMs, m.errorCode, m.errorMessage);
         }
     }
 
